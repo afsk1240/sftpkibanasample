@@ -1,0 +1,134 @@
+default_profile: dev
+
+defaults:
+  SFTP_PORT: 22
+  SFTP_USERNAME: root
+  SFTP_PASSWORD: null  # CLI --password 나 환경변수로 입력
+  SFTP_KEY_PATH: ~/.ssh/id_rsa
+
+  REMOTE_ROOT: /remotepath/
+  LOCAL_ROOT: "\\Gdp\ai\upload"
+  ORDER:
+    - 250922_2
+    - 250923_기본
+    - 250923_odt
+
+  EXCLUDE_EXTS:
+    - .mp4
+    - .exe
+    - .swf
+    - .zip
+    - .meta
+
+  FILTER_INCLUDE_GLOBS: []
+  FILTER_EXCLUDE_GLOBS:
+    - "~$*"
+    - "*.tmp"
+
+  FILTER_MIN_SIZE: 0
+  FILTER_MAX_SIZE: 0
+  FILTER_NEWEST_SCOPE: off
+  FILTER_NEWEST_COUNT: 1
+
+  REQUIRE_META: true
+  CONFIRM_PUT: true
+  INCLUDE_ROOT_NAME: true
+  SKIP_IF_EXISTS: size_equal
+  RESUME_ENABLED: true
+  UPLOAD_CHUNK_SIZE: 32768
+
+  RATE_LIMIT_BPS: 0
+  RATE_LIMIT_PER_FILE_BPS: 0
+
+  MAX_WORKERS: 5
+  RETRIES: 3
+  BACKOFF_BASE: 1.0
+  BACKOFF_MAX: 10.0
+  BACKOFF_JITTER: 0.3
+
+  VERIFY_HASH: true
+  HASH_ALGO: sha256
+  HASH_MAX_BYTES: 209715200
+
+  PROGRESS: true
+  PROGRESS_PRINT_INTERVAL: 0.5
+
+  LOG_FILE: sftp_upload.log
+  TIMEOUT: 30
+  STRICT_HOST_KEY_CHECKING: false
+
+  CREATE_END_TOUCH: false
+  TOUCH_ONLY: false
+  END_TOUCH_NAME: end.touch
+
+  QUARANTINE_EXCLUDED: true
+  QUARANTINE_FAILED: true
+
+  SLACK_WEBHOOK_URL: null
+  SMTP_SERVER: null
+  SMTP_PORT: 587
+  SMTP_USER: null
+  SMTP_PASS: null
+  SMTP_USE_TLS: true
+  EMAIL_FROM: null
+  EMAIL_TO: []
+
+  SERVER_POLICIES:
+    "192.168.127.12":
+      max_workers: 5
+      rate_limit_bps: 0
+      retries: 3
+      sftp_window_size: null
+      sftp_max_packet_size: null
+    "backup.example.com":
+      max_workers: 2
+      rate_limit_bps: 1500000
+      retries: 5
+      verify_hash: true
+
+  ELASTICSEARCH:
+    base_url: http://localhost:9200
+    kibana_url: http://localhost:5601
+    api_user: null
+    api_pass: null
+    verify_ssl: true
+    timeout: 10
+    default_index: null
+    nodes:
+      - name: es-local
+        host: 192.168.127.12
+        ssh_port: 22
+        ssh_user: root
+        ssh_key_path: ~/.ssh/id_rsa
+
+profiles:
+  dev:
+    SFTP_HOST: 192.168.127.12
+    ELASTICSEARCH:
+      base_url: http://dev-es.example.com:9200
+      kibana_url: http://dev-kibana.example.com:5601
+      nodes:
+        - name: es-dev-1
+          host: 192.168.127.12
+          ssh_user: root
+          ssh_key_path: ~/.ssh/id_rsa
+        - name: es-dev-2
+          host: 192.168.127.13
+          ssh_user: root
+          ssh_key_path: ~/.ssh/id_rsa
+  prd:
+    SFTP_HOST: prd.example.com  # 실제 PRD 호스트로 교체
+    REMOTE_ROOT: /remotepath/
+    ELASTICSEARCH:
+      base_url: https://prd-es.example.com:9243
+      kibana_url: https://prd-kibana.example.com:5601
+      verify_ssl: true
+      nodes:
+        - name: es-prd-1
+          host: prd-es-node1.example.com
+          ssh_user: sftp
+          ssh_key_path: ~/.ssh/prd_es
+        - name: es-prd-2
+          host: prd-es-node2.example.com
+          ssh_user: sftp
+          ssh_key_path: ~/.ssh/prd_es

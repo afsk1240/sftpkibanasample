@@ -86,6 +86,28 @@ defaults:
       retries: 5
       verify_hash: true
 
+  INVENTORY_DB: ./inventory.sqlite
+  INVENTORY_REMOTE_ROOT: /dpo_nas/aiupfile
+  INVENTORY_HASH_MODE: changed
+  INVENTORY_MAX_HASH_BYTES: 209715200
+  INVENTORY_CASE_INSENSITIVE: false
+
+  POSTGRES:
+    host: dev-db.example.com
+    port: 5432
+    dbname: metadata
+    user: reporter
+    password: null
+    sslmode: require
+    table: public.file_metadata
+    physical_column: physical_filename
+    columns:
+      - brd_id
+      - physical_filename
+      - original_filename
+      - created_at
+    case_insensitive: true
+
   ELASTICSEARCH:
     base_url: http://localhost:9200
     kibana_url: http://localhost:5601

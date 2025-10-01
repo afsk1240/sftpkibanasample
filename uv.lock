@@ -3,6 +3,22 @@ revision = 3
 requires-python = ">=3.11"
 
 [[package]]
-name = "sftp"
+name = "sftp-tool"
 version = "0.1.0"
 source = { virtual = "." }
+
+[[package]]
+name = "paramiko"
+version = "*"
+source = { index = "pypi" }
+
+[[package]]
+name = "PyYAML"
+version = "*"
+source = { index = "pypi" }
+
+[[package]]
+name = "psycopg"
+version = "*"
+source = { index = "pypi" }
+extras = ["binary"]

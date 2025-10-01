@@ -3,6 +3,16 @@
 
 ---
 
+## 코드 패키지 구조 (요약)
+
+- `sftp_v2.py`: 최상위 실행 스크립트 (기존 경로 유지)
+- `sftp_tool/`: 패키지화된 구현
+  - `config.py`: YAML/ENV 로딩, 데이터 클래스
+  - `cli.py`: CLI 옵션 정의
+  - `uploader.py`: 업로드 파이프라인, 레포트/알림
+  - `special_ops.py`: 원격 디렉터리/SSH/Elasticsearch 유틸리티
+  - `main.py`: 엔트리포인트 조립
+
 ## 0) 한눈에 보는 구성 & 핵심 개념
 
 * **실행 파일**: `sftp_v2.py`
@@ -33,12 +43,12 @@
 * 필수: `paramiko`
 
   ```bash
-  pip install paramiko
+  uv pip install -e "."
   ```
 * 선택(엑셀 보고서): `pandas`, `openpyxl`
 
   ```bash
-  pip install pandas openpyxl
+  uv pip install -e ".[reporting]"
   ```
 
 > Paramiko는 SSHv2 클라이언트 라이브러리로, `SSHClient`로 접속 후 `open_sftp()`에서 `SFTPClient`를 얻어 파일 전송을 수행합니다. ([Paramiko][6])
@@ -524,3 +534,27 @@ SERVER_POLICIES={
 [7]: https://codeql.github.com/codeql-query-help/python/py-paramiko-missing-host-key-validation/?utm_source=chatgpt.com "Accepting unknown SSH host keys when using Paramiko"
 [8]: https://docs.paramiko.org/en/1.17/api/client.html?utm_source=chatgpt.com "Client"
 [9]: https://docs.paramiko.org/en/stable/api/client.html?utm_source=chatgpt.com "Client"
+## 5) Inventory / Metadata Workflow
+
+1. **Initial scan**
+   ```bash
+   python sftp_v2.py --profile dev --inventory-scan
+   ```
+   - Hash mode, remote root, and database path follow `INVENTORY_*` settings in `sftp.yaml`.
+   - Override at runtime with flags such as `--inventory-hash-mode full` or `--inventory-db ./inventory.sqlite`.
+
+2. **Change report**
+   ```bash
+   python sftp_v2.py --profile dev --inventory-report --inventory-run-id 3
+   ```
+   - Writes CSV/JSON under `reports/inventory/<timestamp>`.
+   - Files: `added.csv`, `modified.csv`, `renamed.csv`, `deleted.csv`, `summary.json`.
+
+3. **PostgreSQL enrichment**
+   ```bash
+   python sftp_v2.py --profile dev --inventory-enrich-db --inventory-run-id 3
+   ```
+   - Requires `POSTGRES` block in `sftp.yaml`.
+   - Generates `enriched.csv` by joining on the physical filename. Configure column list via `POSTGRES.columns`.
+
+> Columns shown above are minimal samples; add/remove fields by editing the `POSTGRES.columns` array in `sftp.yaml`.

@@ -227,6 +227,7 @@ class PostgresConfig:
     match_column: Optional[str] = None
     additional_where: Optional[str] = None
     case_insensitive: bool = False
+    excel_column_order: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -509,11 +510,29 @@ def parse_postgres_config(env: Env) -> Optional[PostgresConfig]:
     additional_where = _ci_get(raw, "additional_where")
     case_insensitive = bool(_ci_get(raw, "case_insensitive", False))
 
+    raw_excel_columns = _ci_get(raw, "excel_columns", [])
+    excel_column_order: List[str] = []
+    if isinstance(raw_excel_columns, (list, tuple)):
+        for item in raw_excel_columns:
+            if item is None:
+                continue
+            text = str(item).strip()
+            if text:
+                excel_column_order.append(text)
+    elif isinstance(raw_excel_columns, str):
+        for item in raw_excel_columns.split(','):
+            text = item.strip()
+            if text:
+                excel_column_order.append(text)
+
     if not table or not physical_column:
         return None
 
     if not columns:
         columns = [PostgresColumn(expression=physical_column, alias=physical_column)]
+
+    if not excel_column_order:
+        excel_column_order = [col.alias for col in columns]
 
     return PostgresConfig(
         host=str(host),
@@ -529,6 +548,7 @@ def parse_postgres_config(env: Env) -> Optional[PostgresConfig]:
         match_column=str(match_column) if match_column else None,
         additional_where=str(additional_where) if additional_where else None,
         case_insensitive=case_insensitive,
+        excel_column_order=excel_column_order,
     )
 
 

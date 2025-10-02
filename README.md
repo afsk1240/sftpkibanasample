@@ -555,6 +555,9 @@ SERVER_POLICIES={
    python sftp_v2.py --profile dev --inventory-enrich-db --inventory-run-id 3
    ```
    - Requires `POSTGRES` block in `sftp.yaml`.
-   - Generates `enriched.csv` by joining on the physical filename. Configure column list via `POSTGRES.columns`.
+   - Generates `enriched.csv` by joining on the physical filename. Query expressions still come from `POSTGRES.columns`, while the Excel header order is driven by `POSTGRES.excel_columns` (see the example list in `sftp.yaml`).
+   - Adds a `제외여부` flag automatically:
+     - `Y` when `데이터 유형 명` is `용어사전` or `Q&A`, or when the logical filename contains `경기교육_디지털플랫폼_` or `Q_A`.
+     - Flags set to `Y` but whose physical file does not end with `.xlsx` are reset to blank.
 
-> Columns shown above are minimal samples; add/remove fields by editing the `POSTGRES.columns` array in `sftp.yaml`.
+> Update both `POSTGRES.columns` (for SQL expressions) and `POSTGRES.excel_columns` (for output order/labels) to match your schema; the defaults illustrate the full sheet layout.

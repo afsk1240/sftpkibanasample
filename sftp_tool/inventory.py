@@ -15,6 +15,15 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import logging
 
+FILE_PATH_FIELD = '\ud30c\uc77c\ud328\uc2a4'  # Column header for file path (Korean text)
+EXCLUSION_FIELD = '\uc81c\uc678\uc5ec\ubd80'  # Column header for exclusion flag (Korean text)
+DATA_TYPE_FIELD = '\ub370\uc774\ud130 \uc720\ud615 \uba85'  # Metadata column for data-type name (Korean text)
+FILE_NAME_FIELD = '\ud30c\uc77c\uba85'  # Metadata column for original file name (Korean text)
+PHYSICAL_NAME_FIELD = '\ubb3c\ub9ac\ud30c\uc77c\uba85'  # Metadata column for physical file name (Korean text)
+PLATFORM_KEYWORD = '\uacbd\uae30\uad50\uc721_\ub514\uc9c0\ud2f0\ub110\ud50c\ub7ab\ud3fc_'  # Keyword that marks platform files
+EXCLUDE_TYPE_NAMES = {'\uc6a9\uc5b4\uc0ac\uc804', 'Q&A'}  # Data-type names that default to exclusion
+Q_A_KEYWORD = 'Q_A'
+
 from .config import Config, InventorySettings, PostgresConfig
 from .pgmeta import fetch_metadata
 from .uploader import connect_sftp, hash_remote
@@ -447,40 +456,80 @@ def enrich_with_postgres(
 
     metadata_map = fetch_metadata(pg_cfg, names_for_query, logger) if names_for_query else {}
 
-    meta_columns = list(dict.fromkeys(pg_cfg.columns or []))
-    if pg_cfg.physical_column and pg_cfg.physical_column not in meta_columns:
-        meta_columns.insert(0, pg_cfg.physical_column)
-    if not meta_columns:
-        meta_columns.append('physical_filename')
+    column_order = list(pg_cfg.excel_column_order or [col.alias for col in (pg_cfg.columns or [])])
+
+    def _ensure_column(name: str) -> None:
+        if name and name not in column_order:
+            column_order.append(name)
+
+    _ensure_column(FILE_PATH_FIELD)
+    _ensure_column(EXCLUSION_FIELD)
+
+    def _meta_get(meta: Dict[str, Any], key: str) -> Any:
+        if key in meta:
+            return meta[key]
+        if isinstance(key, str):
+            lowered = key.lower()
+            for meta_key, value in meta.items():
+                if isinstance(meta_key, str) and meta_key.lower() == lowered:
+                    return value
+            if ' ' in key:
+                primary = key.split()[0]
+                lowered_primary = primary.lower()
+                for meta_key, value in meta.items():
+                    if isinstance(meta_key, str) and (meta_key == primary or meta_key.lower() == lowered_primary):
+                        return value
+        return None
+
+    def _clean(value: Any) -> Any:
+        return '' if value is None else value
+
+    def _compute_exclusion(meta: Dict[str, Any], candidate_path: str) -> str:
+        data_type_name = str(_meta_get(meta, DATA_TYPE_FIELD) or '').strip()
+        file_name_text = str(_meta_get(meta, FILE_NAME_FIELD) or '').strip()
+        physical_name = str(_meta_get(meta, PHYSICAL_NAME_FIELD) or '').strip()
+        flagged = False
+        if data_type_name in EXCLUDE_TYPE_NAMES:
+            flagged = True
+        name_for_check = file_name_text or physical_name or posixpath.basename(candidate_path)
+        normalized_check = name_for_check or ''
+        if PLATFORM_KEYWORD and PLATFORM_KEYWORD in normalized_check:
+            flagged = True
+        if Q_A_KEYWORD and Q_A_KEYWORD in normalized_check.upper():
+            flagged = True
+        if not flagged:
+            return ''
+        ext_source = physical_name or name_for_check or posixpath.basename(candidate_path)
+        extension = posixpath.splitext(ext_source)[1].lower()
+        if extension != '.xlsx':
+            return ''
+        return 'Y'
 
     rows: List[Dict[str, Any]] = []
-    for row in changes:
-        base = {
-            'change_type': row['change_type'],
-            'path': row['path'],
-            'old_path': row['old_path'],
-            'size_before': row['size_before'],
-            'size_after': row['size_after'],
-            'hash_before': row['hash_before'],
-            'hash_after': row['hash_after'],
-            'seen_before': row['seen_before'],
-            'seen_after': row['seen_after'],
-        }
-        candidate = row['path'] or row['old_path'] or ''
+    for change in changes:
+        candidate = change['path'] or change['old_path'] or ''
         key = posixpath.basename(candidate)
         lookup_key = key.lower() if pg_cfg.case_insensitive else key
         meta = metadata_map.get(lookup_key, {})
-        for column in meta_columns:
-            base[column] = meta.get(column) or meta.get(column.lower())
-        rows.append(base)
+        row_data: Dict[str, Any] = {}
+        for column_name in column_order:
+            if column_name == FILE_PATH_FIELD:
+                value = candidate
+            elif column_name == EXCLUSION_FIELD:
+                value = _compute_exclusion(meta, candidate)
+            elif column_name == PHYSICAL_NAME_FIELD:
+                value = _meta_get(meta, column_name) or posixpath.basename(candidate)
+            else:
+                value = _meta_get(meta, column_name)
+            row_data[column_name] = _clean(value)
+        rows.append(row_data)
 
     if not rows:
         enriched_path.write_text('', encoding='utf-8')
         return enriched_path
 
-    fieldnames = list(rows[0].keys())
     with enriched_path.open('w', encoding='utf-8', newline='') as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer = csv.DictWriter(handle, fieldnames=column_order)
         writer.writeheader()
         writer.writerows(rows)
     logger.info("[INVENTORY] wrote enriched report to %s", enriched_path)
